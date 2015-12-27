@@ -1,0 +1,105 @@
+#Practical Machine Learning Course Project
+Irina Nisina
+
+## Summary
+In this project load data about personal activity relatively inexpensively. The goal of the project is to predict the manner in which people did the exercise. This is the "classe" variable in the training set. This report describes how I built my model, how used cross validation, what think the expected out of sample error is, and why I made the choices I did.
+
+##Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset). 
+
+
+##Data 
+The training data for this project are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: 
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+##Loading required libraries and data
+```{r, cache=TRUE}
+library(dplyr);
+library(caret);
+library(rpart); 
+library(randomForest);
+
+
+set.seed(12341)
+trnUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+tstUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+datatrain <- tbl_df(read.csv(trnUrl, na.strings=c("NA","#DIV/0!","")))
+datatest <- tbl_df(read.csv(tstUrl, na.strings=c("NA","#DIV/0!","")))
+```
+
+##Exploring and cleaning data  
+Ilike function summary() but in view of the fact that there are 160 variables in dataset the summary of all of them will be too bulky for the report (the results of this function were hidden). 
+```{r, results='hide',cache=TRUE}
+
+# remove variables with nearly zero variance
+nzv <- nearZeroVar(datatrain)
+trainset <- datatrain[, -nzv]
+testset <- datatest[, -nzv]
+
+#remove columns with 80% NAs
+trainset <- trainset[,colSums(is.na(trainset)) < 0.8*dim(trainset)[1]] 
+testset <-  testset[,colSums(is.na(testset)) < 0.8*dim(testset)[1]] 
+
+summary(trainset)
+summary(testset)
+
+#some variables that don't seems to be predictors I remove from the datasets: first seven vars.
+
+trainset <- select(trainset, 7:59)
+testset <- select(testset, 7:59)
+
+#Data partition (trainset)
+inTrain <- createDataPartition(trainset$classe, p=0.6, list=FALSE)
+training <- trainset[inTrain, ]
+testing <- trainset[-inTrain, ]
+
+dim(training); dim(testing)
+summary(training)
+```
+
+##Tuning, building and selecting the model
+
+### CART model
+```{r, cache=TRUE}
+fitControl1 <- trainControl(method = "cv", number = 3, verboseIter=F)
+modFit1 <- train(classe ~ ., data = training[,],
+                 method = "rpart", 
+                 trControl = fitControl1)
+modFit1
+```
+
+###Random forests model
+```{r ,cache=TRUE}
+fitControl2 <- trainControl(method = "oob", number = 3, verboseIter=F)
+modFit2 <- train(classe ~., data = training,
+                 method = "rf", 
+                 trControl = fitControl2)
+modFit2
+```
+#### The accuracy for CART model is too low, therefore I choose random forests model for predicting
+
+##Prediction using Random forests model with the parameter: 
+```{r ,cache=TRUE}
+pred <- predict(modFit2,testing); testing$predRight <- pred==testing$classe
+table(pred,testing$classe)
+```
+
+##Apply modFit2 on our testset data and writing up answers into the files
+```{r ,cache=TRUE}
+answ <- predict(modFit2,newdata=testset)
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(answ)
+```
