@@ -1,5 +1,5 @@
 # PML-Course-project
-John Hopkins Bloomberg school PML course project
+##John Hopkins Bloomberg school PML course project
 
 Script in this repo is Course project.rmd.
 
